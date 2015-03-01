@@ -1,0 +1,5 @@
+# Relating Cassandra and ElasticSearch
+
+Cassandra       ElasticSearch       Sql
+Keyspace        Index             Database
+Column Family   Document          Table
