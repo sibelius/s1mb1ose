@@ -8,7 +8,7 @@ from datetime import datetime
 import random
 import string
 import time
-from util import create_ks_str, create_cf_str, insert_cs, insert_es, rand_body, clear_es, clear_cs
+from util import CassandraHelper, ElasticsearchHelper, rand_body
 
 # meta data to generate the data for both databases
 meta = {
@@ -22,12 +22,12 @@ meta = {
     }
 }
 
-def init_cs(session, meta):
+def init_cs(cs_helper, meta):
     """Cassandra requires to first create the keyspaces and the 'tables' definition"""
     for ks in meta.keys():
-        session.execute(create_ks_str(ks))
+        cs_helper.execute(cs_helper.create_ks_str(ks))
         for cf in meta[ks].keys():
-            session.execute(create_cf_str(ks, cf, meta[ks][cf]))
+            cs_helper.execute(cs_helper.create_cf_str(ks, cf, meta[ks][cf]))
 
 # Functions to generate new random data
 def rand_data(meta):
@@ -38,15 +38,15 @@ def rand_data(meta):
 
     return db, table, _id, body
 
-def insert_rand_data(es, session, meta):
+def insert_rand_data(es_helper, cs_helper, meta):
     """Insert a random data inside es or cs"""
     db, table, _id, body = rand_data(meta)
 
     # 0 - only es, 1 - only cs, 2 - both
     op = random.randint(0,2)
 
-    ies = lambda: insert_es(es, db, table, _id, body)
-    ics = lambda: insert_cs(session, db, table, _id, body)
+    ies = lambda: es_helper.insert(db, table, _id, body, log=True)
+    ics = lambda: cs_helper.insert(db, table, _id, body, log=True)
 
     if op == 0:
         ies()
@@ -70,19 +70,23 @@ def simulate():
     cluster = Cluster()
     session = cluster.connect()
 
+    cs_helper = CassandraHelper(cluster, session)
+
     # Elasticsearch variable
     es = Elasticsearch()
 
-    init_cs(session, meta)
+    es_helper = ElasticsearchHelper(es)
+
+    init_cs(cs_helper, meta)
     while True:
         cmd = input('new data (y/n), clear data (c): ')
 
         if cmd == 'y':
-            insert_rand_data(es, session, meta)
+            insert_rand_data(es_helper, cs_helper, meta)
         elif cmd == 'c':
             print('cleaning...')
-            clear_es(es)
-            clear_cs(session, meta)
+            es_helper.clear()
+            cs_helper.clear()
             break
         elif cmd == 'n':
             break
